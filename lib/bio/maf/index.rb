@@ -1,5 +1,6 @@
 require 'kyotocabinet'
 require 'bitstring'
+require 'bindata'
 
 require 'bio-ucsc-api'
 require 'bio-genomic-interval'
@@ -7,6 +8,26 @@ require 'bio-genomic-interval'
 module Bio
 
   module MAF
+
+    class IndexKey < BinData::Record
+      endian :big
+
+      uint8    :marker, :value => 0xFF
+      uint8    :seq_id
+      uint16   :bin
+      uint32   :seq_start
+      uint32   :seq_end
+    end
+
+    class IndexValue < BinData::Record
+      endian :big
+
+      uint64   :b_offset
+      uint32   :b_length
+      uint32   :text_size
+      uint8    :n_seq
+      uint64   :species_vec
+    end
 
     module KVHelpers
 
@@ -21,23 +42,22 @@ module Bio
       module_function
 
       def extract_species_vec(entry)
-        entry[1].unpack(VAL_SPECIES_FMT)[0]
+        entry[1].species_vec
       end
 
       def extract_index_offset(entry)
-        entry[1].unpack(VAL_IDX_OFFSET_FMT)
+        [entry[1].b_offset, entry[1].b_length]
       end
 
       def extract_text_size(entry)
-        entry[1].unpack(VAL_TEXT_SIZE_FMT)[0]
+        entry[1].text_size
       end
 
-      def unpack_key(ks)
-        ks.unpack(KEY_FMT)
-      end
-
-      def bin_start_prefix(chrom_id, bin)
-        [0xFF, chrom_id, bin].pack(CHROM_BIN_PREFIX_FMT)
+      def bin_start_prefix(seq_id, bin)
+        k = IndexKey.new
+        k.seq_id = seq_id
+        k.bin = bin
+        return k.to_binary_s.slice(0...(k.bin.offset + k.bin.num_bytes))
       end
     end
 
@@ -139,6 +159,8 @@ module Bio
       #### KyotoIndex Internals
 
       def initialize(path)
+        @key = IndexKey.new
+        @val = IndexValue.new
         @species = {}
         @species_max_id = -1
         if (path.size > 1) and File.exist?(path)
@@ -231,19 +253,24 @@ module Bio
             # scan from the start of the bin
             cur.jump(bin_start_prefix(chrom_id, bin))
             while pair = cur.get(true)
-              c_chr, c_bin, c_start, c_end = pair[0].unpack(KEY_SCAN_FMT)
-              if (c_chr != chrom_id) \
-                || (c_bin != bin) \
-                || c_start >= spanning_end
+              @key.read(pair[0])
+              @val.read(pair[1])
+              if (@key.seq_id != chrom_id) \
+                || (@key.bin != bin) \
+                || @key.seq_start >= spanning_end
                 # we've hit the next bin, or chromosome, or gone past
                 # the spanning interval, so we're done with this bin
                 break
               end
-              if c_end >= spanning_start # possible overlap
-                c_int = GenomicInterval.zero_based(chrom, c_start, c_end)
+              if @key.seq_end >= spanning_start # possible overlap
+                c_int = GenomicInterval.zero_based(chrom,
+                                                   @key.seq_start,
+                                                   @key.seq_end)
                 if bin_intervals.find { |i| i.overlapped?(c_int) }
-                  if filters.match(pair)
-                    to_fetch << extract_index_offset(pair)
+                  # TODO: simplify
+                  pair_2 = [@key, @val]
+                  if filters.match(pair_2)
+                    to_fetch << [@val.b_offset, @val.b_length]
                   end
                 end
               end
@@ -307,27 +334,31 @@ module Bio
       end
 
       def build_block_value(block)
+        ## TODO: RSpec to ensure that all fields are reset
+        @val.b_offset = block.offset
+        @val.b_length = block.size
+        @val.text_size = block.text_size
+        @val.n_seq = block.sequences.size
         species_vec = BitString.new(0, 64)
         block.sequences.each do |seq|
           species_vec[species_id_for_seq(seq.source)] = 1
         end
-        return [block.offset,
-                block.size,
-                block.text_size,
-                block.sequences.size,
-                species_vec.to_i].pack(VAL_FMT)
+        @val.species_vec = species_vec.to_i
       end
 
       def entries_for(block)
+        ## TODO: RSpec to ensure that all fields are reset
         e = []
-        val = build_block_value(block)
+        build_block_value(block)
         block.sequences.each do |seq|
           seq_id = index_sequences[seq.source]
           next unless seq_id
+          @key.seq_id = seq_id
+          @key.seq_start = seq.start
           seq_end = seq.start + seq.size
-          bin = Bio::Ucsc::UcscBin.bin_from_range(seq.start, seq_end)
-          key = [255, seq_id, bin, seq.start, seq_end].pack(KEY_FMT)
-          e << [key, val]
+          @key.seq_end = seq_end
+          @key.bin = Bio::Ucsc::UcscBin.bin_from_range(seq.start, seq_end)
+          e << [@key.to_binary_s, @val.to_binary_s]
         end
         return e
       end
