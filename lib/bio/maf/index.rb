@@ -42,7 +42,7 @@ module Bio
       module_function
 
       def extract_species_vec(entry)
-        entry[1].species_vec
+        entry[1].species_vec.snapshot
       end
 
       def extract_index_offset(entry)
