@@ -270,7 +270,8 @@ module Bio
                   # TODO: simplify
                   pair_2 = [@key, @val]
                   if filters.match(pair_2)
-                    to_fetch << [@val.b_offset, @val.b_length]
+                    to_fetch << [@val.b_offset.snapshot,
+                                 @val.b_length.snapshot]
                   end
                 end
               end
