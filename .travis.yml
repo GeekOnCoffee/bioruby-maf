@@ -8,6 +8,8 @@ rvm:
   - jruby-19mode # JRuby in 1.9 mode
   - jruby-head
   - rbx-19mode
+env:
+  - JRUBY_OPTS=-Xcext.enabled=true
 matrix:
   allow_failures:
     - rvm: jruby-19mode
