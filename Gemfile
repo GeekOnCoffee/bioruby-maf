@@ -3,7 +3,7 @@ source "http://rubygems.org"
 gem "bio-bigbio"
 gem "bio-ucsc-api", "~> 0.4.0"
 gem "bio-genomic-interval", "~> 0.1.2"
-gem "kyotocabinet-ruby", "~> 1.27.1", :platforms => :mri
+gem "kyotocabinet-ruby", "~> 1.27.1"
 
 
 # Add dependencies to develop your gem here.
@@ -13,6 +13,7 @@ group :development do
   gem "simplecov", "~> 0.6.4", :platforms => :mri
   gem "yard", "~> 0.8.1"
   gem "kramdown", "~> 0.13.6"
+  gem "ruby-debug", :platforms => :jruby
 end
 
 group :test do

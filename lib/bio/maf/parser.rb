@@ -123,6 +123,9 @@ module Bio
         @s = StringScanner.new(read_chunk())
         set_last_block_pos!
         @at_end = false
+        # XXX: JRuby issue: uncomment this and it will pass
+        #      rspec -t bug
+        # @sequence_filter = nil
         _parse_header()
       end
 
@@ -304,10 +307,16 @@ module Bio
           case line[0]
           when 's'
             _, src, start, size, strand, src_size, text = line.split
+            # XXX: JRuby issue: change next line to:
+            # if @sequence_filter
+            #      and it will pass rspec -t bug
             if sequence_filter
+              $stderr.puts "SEQUENCE FILTER PRESENT"
               if sequence_filter[:only_species]
                 src_sp = src.split('.', 2)[0]
+                $stderr.puts "looking at: #{src_sp.inspect}"
                 m = sequence_filter[:only_species].find { |sp| src_sp == sp }
+                $stderr.puts "  matched #{m}" if m
                 next unless m
               end
             end

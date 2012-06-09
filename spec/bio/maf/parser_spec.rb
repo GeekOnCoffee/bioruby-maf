@@ -154,14 +154,14 @@ module Bio
             blocks.collect {|b| b.offset}.should == [16, 3011]
           end
         end
-        context "with 4K chunk size" do
+        context "with 4K chunk size", :bug => true do
           before(:each) do
             @p = described_class.new(TestData + 'mm8_chr7_tiny.maf',
                                      :chunk_size => 4096)
           end
           it_behaves_like "any chunk size"
         end
-        context "after parsing to end" do
+        context "after parsing to end", :bug => true do
           before(:each) do
             @p = described_class.new(TestData + 'mm8_chr7_tiny.maf',
                                      :chunk_size => 4096)
@@ -169,7 +169,7 @@ module Bio
           end
           it_behaves_like "any chunk size"
         end
-        context "with 8M chunk size" do
+        context "with 8M chunk size", :bug => true do
           before(:each) do
             @p = described_class.new(TestData + 'mm8_chr7_tiny.maf',
                                      :chunk_size => 8 * 1024 * 1024)
@@ -181,17 +181,28 @@ module Bio
         end
       end
 
-      describe "sequence_filter" do
+      describe "sequence_filter", :bug => true do
         before(:each) do
           @p = described_class.new(TestData + 'mm8_mod_a.maf')
         end
         it "restricts sequences parsed" do
           @p.sequence_filter = { :only_species => %w(mm8 rn4) }
-          @p.parse_block.sequences.size.should == 2
+          $stderr.puts "Sequence filter: #{@p.sequence_filter.inspect}"
+          $stderr.puts "Chunk sizes: #{@p.chunk_size}, #{@p.cr.chunk_size}"
+          n_seq = @p.parse_block.sequences.size
+          $stderr.puts "Sequence filter after: #{@p.sequence_filter.inspect}"
+          n_seq.should == 2
         end
         it "matches at the species delimiter rather than a prefix" do
           @p.sequence_filter = { :only_species => %w(mm8 hg18) }
-          @p.parse_block.sequences.size.should == 2
+          $stderr.puts "Sequence filter: #{@p.sequence_filter.inspect}"
+          $stderr.puts "Chunk sizes: #{@p.chunk_size}, #{@p.cr.chunk_size}"
+          n_seq = @p.parse_block.sequences.size
+          $stderr.puts "Sequence filter after: #{@p.sequence_filter.inspect}"
+          n_seq.should == 2
+        end
+        after(:each) do
+          @p.f.close
         end
       end
 
@@ -329,6 +340,6 @@ module Bio
 
     end
 
-  end
+  end # module MAF
   
 end
